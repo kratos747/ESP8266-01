@@ -1,0 +1,127 @@
+#include <SoftwareSerial.h>
+#define TX 2
+#define RX 3
+
+  const int LEDPin = 8;        // pin para el LED
+  const int PIRPin = 4;         // pin de entrada (for PIR sensor)
+
+  int pirState = LOW;           // de inicio no hay movimiento
+   int pirStateVal = 0;   
+  int val = 0;                  // estado del pin
+
+  String AP = "Charly";       // CHANGE ME
+  String PASS = "shenglong1289"; // CHANGE ME
+  String API = "3GYFQZ9SX0S8IWFW";   // CHANGE ME
+  String HOST = "api.thingspeak.com";
+  String PORT = "80";
+  String field = "field2";
+  int countTrueCommand;
+  int countTimeCommand; 
+  boolean found = false; 
+  int valmovimiento = 0;
+  SoftwareSerial esp8266(RX,TX); 
+  
+ void printArray(byte *buffer, byte bufferSize) {
+   for (byte i = 0; i < bufferSize; i++) {
+      Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+      Serial.print(buffer[i], HEX);
+      }
+    }
+  
+  void setup() {
+  Serial.begin(9600);
+  esp8266.begin(115200);
+  sendCommand("AT",5,"OK");
+  sendCommand("AT+CWMODE=1",5,"OK");
+  sendCommand("AT+CWJAP=\""+ AP +"\",\""+ PASS +"\"",20,"OK");
+
+
+   pinMode(LEDPin, OUTPUT); 
+   pinMode(PIRPin, INPUT);
+   }
+
+  void loop() {
+  valmovimiento = getSensorData();
+
+
+  Serial.print("MOV:");
+Serial.println(valmovimiento); 
+  int valSensorV1 =200;
+ // int valmovimiento =200;
+
+    
+  String getData = "GET /update?api_key="+ API +"&field1="+String(valSensorV1) +"&field2="+String(valmovimiento);
+  sendCommand("AT+CIPMUX=1",5,"OK");
+  sendCommand("AT+CIPSTART=0,\"TCP\",\""+ HOST +"\","+ PORT,15,"OK");
+  sendCommand("AT+CIPSEND=0," +String(getData.length()+4),4,">");
+  esp8266.println(getData);
+  delay(2000);
+  countTrueCommand++;
+  sendCommand("AT+CIPCLOSE=0",5,"OK");
+  }
+
+  
+int getSensorData(){
+     val = digitalRead(PIRPin);
+     if (val == HIGH)   //si está activado
+     {
+        digitalWrite(LEDPin, HIGH);  //LED ON
+        if (pirState == LOW) Serial.println("Sensor activado");
+      
+        pirState = HIGH;
+        pirStateVal=100;
+        
+        
+      }  else  {
+         digitalWrite(LEDPin, LOW); // LED OFF
+         if (pirState == HIGH) Serial.println("Sensor parado");
+         pirState = LOW;
+         pirStateVal=50;
+                 
+      }
+   
+    return pirStateVal;
+  
+}
+
+
+void sendCommand(String command, int maxTime, char readReplay[]) {
+    Serial.print(countTrueCommand);
+    Serial.print(". at command => ");
+    Serial.print(command);
+    Serial.print(" ");
+    while(countTimeCommand < (maxTime*1))
+    {
+      esp8266.println(command);//at+cipsend
+      if(esp8266.find(readReplay))//ok
+      {
+        found = true;
+        break;
+      }
+  
+    countTimeCommand++;
+  }
+  
+  if(found == true)
+  {
+    Serial.println("Ok");
+    countTrueCommand++;
+    countTimeCommand = 0;
+  }
+  
+  if(found == false)
+  {
+    Serial.println("Fail");
+    countTrueCommand = 0;
+    countTimeCommand = 0;
+  }
+  
+  found = false;
+
+  
+ 
+// delay(1000);
+  }
+   
+
+   
